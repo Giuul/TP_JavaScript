@@ -1,3 +1,29 @@
+// Al cargar la página, restaurar datos desde LocalStorage
+document.addEventListener('DOMContentLoaded', () => {
+  cargarDatosLocalStorage();
+  mostrarCursos();
+});
+
+// Función para guardar cursos en LocalStorage
+function guardarEnLocalStorage() {
+  localStorage.setItem('cursos', JSON.stringify(cursos));
+}
+
+// Función para cargar los datos desde LocalStorage
+function cargarDatosLocalStorage() {
+  const datosGuardados = localStorage.getItem('cursos');
+  if (datosGuardados) {
+      const cursosRestaurados = JSON.parse(datosGuardados);
+      cursosRestaurados.forEach(cursoData => {
+          const cursoRestaurado = new Curso(cursoData.nombre, cursoData.profesor);
+          cursoData.estudiantes.forEach(estudianteData => {
+              const estudianteRestaurado = new Estudiante(estudianteData.nombre, estudianteData.edad, estudianteData.nota);
+              cursoRestaurado.agregarEstudiante(estudianteRestaurado);
+          });
+          cursos.push(cursoRestaurado);
+      });
+  }
+}
 
 // Clase Estudiante
 class Estudiante {
@@ -53,6 +79,9 @@ class Estudiante {
   const cursoEstudianteSelect = document.getElementById('curso-estudiante');
   const listaCursos = document.getElementById('lista-cursos');
   const mensajeError = document.getElementById('mensajeError');
+  const buscarEstudiante = document.getElementById('buscarEstudiante');
+  const buscarProfesor = document.getElementById('buscarProfesor');
+  const ordenarPor = document.getElementById('ordenarPor');
   
   let errores = [];
   
@@ -68,6 +97,9 @@ class Estudiante {
     // Crear un nuevo curso
     const nuevoCurso = new Curso(nombreCurso, profesorCurso);
     cursos.push(nuevoCurso);
+
+    // Guardar en LocalStorage
+    guardarEnLocalStorage();
     
     // Limpiar formulario
     formCurso.reset();
@@ -115,15 +147,14 @@ class Estudiante {
     if (errores.length > 0) {
         mensajeError.innerHTML = errores.join("<br>");
     } else {
-        // Si no hay errores, mostramos los datos del estudiante
+        // Si no hay errores, agregamos estudiante
         mensajeError.innerHTML = "";
-        cursos[cursoIndex].agregarEstudiante(nuevoEstudiante); // Limpiar los mensajes de error
+        cursos[cursoIndex].agregarEstudiante(nuevoEstudiante); 
+
+        // Guardar en LocalStorage
+        guardarEnLocalStorage();
     }
     
-    
-    
-    // Agregar estudiante al curso seleccionado
-    //cursos[cursoIndex].agregarEstudiante(nuevoEstudiante);
     
     // Limpiar formulario
     formEstudiante.reset();
@@ -140,6 +171,7 @@ class Estudiante {
       option.value = index;
       option.textContent = curso.nombre;
       cursoEstudianteSelect.appendChild(option);
+      guardarEnLocalStorage();
     });
   }
   
@@ -151,22 +183,27 @@ class Estudiante {
       cursoDiv.classList.add('curso');
       
       cursoDiv.innerHTML = `
-        <h3>Curso: ${curso.nombre} (Profesor: ${curso.profesor})</h3>
-        <p><strong>Promedio:</strong> ${curso.obtenerPromedio()}</p>
-        <button onclick="editarCurso(${cursoIndex})">Editar Curso</button>
-        <button onclick="eliminarCurso(${cursoIndex})">Eliminar Curso</button>
+        <h3>Curso: ${curso.nombre} - Profesor: ${curso.profesor}</h3>
         <div class="estudiantes">
-          <strong>El curso esta conformado por:</strong><br>
+          <strong>Alumnos que lo conforman:</strong><br><br>
           ${curso.listarEstudiantes() || 'No hay estudiantes en este curso.'}
           <br><br><br>
+          <p><strong>Promedio:</strong> ${curso.obtenerPromedio()}</p>
+          <br><br><br>
+          
         </div>
+        <h3><u>Edición de curso:</u></h3>
+        <button onclick="editarCurso(${cursoIndex})">Editar Curso</button>
+        <button onclick="eliminarCurso(${cursoIndex})">Eliminar Curso</button>
       `;
       
       curso.estudiantes.forEach((estudiante, estudianteIndex) => {
         cursoDiv.innerHTML += `
           <div>
-          <strong><u>Edición estudiantes:</u></strong><br>
+          <br><br>
+          <h3><u>Edición estudiantes:</u></h3>
             ${estudiante.presentarse()}
+            <br><br>
             <button onclick="editarEstudiante(${cursoIndex}, ${estudianteIndex})">Editar estudiante</button>
             <button onclick="eliminarEstudiante(${cursoIndex}, ${estudianteIndex})">Eliminar estudiante</button>
           </div>
@@ -187,6 +224,8 @@ class Estudiante {
       mostrarCursos();
       actualizarCursosSelect();
     }
+    mostrarEstadisticas();
+    guardarEnLocalStorage();
   }
   
   // Función para eliminar un curso
@@ -196,6 +235,8 @@ class Estudiante {
       mostrarCursos();
       actualizarCursosSelect();
     }
+      mostrarEstadisticas();
+    guardarEnLocalStorage();
   }
   
   // Función para editar un estudiante
@@ -207,6 +248,8 @@ class Estudiante {
       cursos[cursoIndex].editarEstudiante(estudianteIndex, nombreEstudiante, parseInt(edadEstudiante), parseFloat(notaEstudiante));
       mostrarCursos();
     }
+    mostrarEstadisticas();
+    guardarEnLocalStorage();
   }
   
   // Función para eliminar un estudiante
@@ -215,4 +258,153 @@ class Estudiante {
       cursos[cursoIndex].eliminarEstudiante(estudianteIndex);
       mostrarCursos();
     }
+    
+    mostrarEstadisticas();
+   
+    guardarEnLocalStorage();
   }
+
+  // Evento para la búsqueda de estudiantes y profesores
+document.getElementById('btnBuscar').addEventListener('click', () => {
+  const nombreBuscado = document.getElementById('buscarEstudiante').value.toLowerCase();
+  const profesorBuscado = document.getElementById('buscarProfesor').value.toLowerCase();
+
+  let resultados = cursos.filter(curso => {
+      // Si ambos campos están vacíos, no mostrar nada
+      if (!nombreBuscado && !profesorBuscado) return false;
+
+      // Filtrar por estudiante si se ha ingresado un nombre de estudiante
+      let coincidenciasEstudiante = nombreBuscado 
+          ? curso.estudiantes.some(est => est.nombre.toLowerCase().includes(nombreBuscado)) 
+          : true;
+
+      // Filtrar por profesor si se ha ingresado un nombre de profesor
+      let coincidenciasProfesor = profesorBuscado 
+          ? curso.profesor.toLowerCase().includes(profesorBuscado) 
+          : true;
+
+      // Devolver verdadero si coincide con cualquiera de los filtros
+      return coincidenciasEstudiante && coincidenciasProfesor;
+  });
+
+  // Mostrar los cursos filtrados
+  listaCursos.innerHTML = '';
+  resultados.forEach((curso, cursoIndex) => {
+      let cursoDiv = document.createElement('div');
+      cursoDiv.classList.add('curso');
+
+      cursoDiv.innerHTML = `
+          <h3>Curso: ${curso.nombre} (Profesor: ${curso.profesor})</h3>
+          <p><strong>Promedio:</strong> ${curso.obtenerPromedio()}</p>
+          <button onclick="editarCurso(${cursoIndex})">Editar Curso</button>
+          <button onclick="eliminarCurso(${cursoIndex})">Eliminar Curso</button>
+          <div class="estudiantes">
+              <strong>Estudiantes:</strong><br>
+      `;
+
+      // Si se busca un estudiante, mostrar solo el estudiante filtrado
+      if (nombreBuscado) {
+          let estudiantesFiltrados = curso.estudiantes.filter(est => est.nombre.toLowerCase().includes(nombreBuscado));
+          estudiantesFiltrados.forEach(est => {
+              cursoDiv.innerHTML += `
+                  ${est.presentarse()}<br>
+              `;
+          });
+      } else {
+          // Si no se busca un estudiante, mostrar todos los estudiantes del curso
+          cursoDiv.innerHTML += curso.listarEstudiantes() || 'No hay estudiantes en este curso.';
+      }
+
+      cursoDiv.innerHTML += '</div>';
+      listaCursos.appendChild(cursoDiv);
+  });
+});
+
+// Función para ordenar estudiantes
+document.getElementById('btnOrdenar').addEventListener('click', () => {
+  const criterio = ordenarPor.value;
+  
+  cursos.forEach(curso => {
+      if (criterio === 'nota') {
+          curso.estudiantes.sort((a, b) => b.nota - a.nota); // Ordenar por nota descendente
+      } else if (criterio === 'edad') {
+          curso.estudiantes.sort((a, b) => a.edad - b.edad); // Ordenar por edad ascendente
+      }
+  });
+
+  mostrarCursos(); // Actualizar la lista con los estudiantes ordenados
+  guardarEnLocalStorage();
+});
+
+// Mostrar los cursos al cargar la página
+mostrarCursos();
+
+
+// Función para calcular y mostrar las estadísticas del sistema
+function mostrarEstadisticas() {
+  let totalEstudiantes = 0;
+  let sumaTotalNotas = 0;
+  let mejorCurso = null;
+  let mejorPromedio = -1;
+  
+  // Recorrer todos los cursos
+  cursos.forEach(curso => {
+      totalEstudiantes += curso.estudiantes.length; // Contar estudiantes
+
+      // Calcular el promedio de este curso
+      const promedioCurso = curso.obtenerPromedio();
+      sumaTotalNotas += curso.estudiantes.reduce((acc, est) => acc + est.nota, 0); // Sumar todas las notas
+
+      // Comparar para encontrar el curso con mejor promedio
+      if (promedioCurso > mejorPromedio) {
+          mejorPromedio = promedioCurso;
+          mejorCurso = curso.nombre;
+      }
+      guardarEnLocalStorage();
+  });
+
+  // Calcular el promedio general de todos los estudiantes
+  const promedioGeneral = totalEstudiantes > 0 ? (sumaTotalNotas / totalEstudiantes).toFixed(2) : 0;
+
+  // Actualizar los datos en el DOM
+  document.getElementById('total-cursos').textContent = cursos.length;
+  document.getElementById('total-estudiantes').textContent = totalEstudiantes;
+  document.getElementById('promedio-general').textContent = promedioGeneral;
+  document.getElementById('mejor-curso').textContent = mejorCurso ? mejorCurso : 'N/A';
+}
+
+// Llamar a la función de estadísticas cada vez que se actualicen los cursos o estudiantes
+formCurso.addEventListener('submit', () => {
+  mostrarEstadisticas();
+});
+
+formEstudiante.addEventListener('submit', () => {
+  mostrarEstadisticas();
+});
+
+// Función para actualizar las estadísticas tras editar o eliminar
+function actualizarEstadisticas() {
+  mostrarEstadisticas();
+  guardarEnLocalStorage();
+}
+
+// Al cargar la página, mostrar las estadísticas iniciales
+document.addEventListener('DOMContentLoaded', () => {
+  mostrarEstadisticas();
+});
+
+// Función para descargar el archivo JSON
+function exportarJSON() {
+  const dataStr = JSON.stringify(cursos, null, 2);  
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'gestionDeCursos.json';
+  link.click();
+  URL.revokeObjectURL(url);  
+}
+
+// Evento al hacer clic en el botón de exportar JSON
+document.getElementById('btnExportarJSON').addEventListener('click', exportarJSON);
+
